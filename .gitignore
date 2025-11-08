@@ -16,3 +16,6 @@ song.mp3
 *.wav
 # сборочная шелуха
 .DS_Store
+models/
+.DS_Store
+node_modules/
