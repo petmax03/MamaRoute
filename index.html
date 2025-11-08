@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <title>Мамин Маршрут</title>
+  <style>
+    :root{--bg:#0b0b12;--card:#151526;--text:#e7e7ff;--violet:#8b5cf6;--orange:#f59e0b}
+    *{box-sizing:border-box}html,body{height:100%}
+    body{margin:0;color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      background:radial-gradient(1200px 600px at 20% -10%,#1e1b4b,transparent),
+                 radial-gradient(800px 400px at 120% 10%,#2b2a45,transparent),var(--bg)}
+    .wrap{max-width:920px;margin:0 auto;padding:24px}
+    .hero{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .badge{background:rgba(139,92,246,.15);color:#c4b5fd;border:1px solid rgba(139,92,246,.4);padding:6px 10px;border-radius:999px;font-size:13px}
+    h1{margin:8px 0 2px;font-size:34px;letter-spacing:.2px}
+    p.muted{margin:0 0 14px;opacity:.85}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:800px){.grid{grid-template-columns:1.2fr .8fr}}
+    .card{background:linear-gradient(180deg,rgba(21,21,38,.9),rgba(21,21,38,.65));
+      border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+    .controls{display:flex;gap:10px;flex-wrap:wrap}
+    button{background:linear-gradient(180deg,#9a77ff,#6d49ff);border:none;color:#fff;padding:12px 16px;border-radius:14px;font-weight:700;cursor:pointer;
+      box-shadow:0 6px 18px rgba(109,73,255,.45);transition:.15s}
+    button.secondary{background:rgba(255,255,255,.08);box-shadow:none;border:1px solid rgba(255,255,255,.12)}
+    button.orange{background:linear-gradient(180deg,#ffb74a,#f59e0b);box-shadow:0 6px 18px rgba(245,158,11,.4)}
+    button:hover{transform:translateY(-1px)}
+    .lyr{white-space:pre-wrap;line-height:1.52;font-size:16px}
+    .gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .gallery img{width:100%;height:120px;object-fit:cover;border-radius:12px;border:1px solid rgba(255,255,255,.08)}
+    .note{width:100%;min-height:90px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);padding:10px;resize:vertical}
+    .pill{display:inline-flex;gap:8px;background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.45);color:#fde68a;border-radius:999px;padding:6px 10px;font-size:12px}
+    .small{font-size:12px;opacity:.85}.footer{opacity:.7;text-align:center;margin-top:14px}
+    #out{min-height:58px}#load{height:6px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden;display:none;margin:8px 0}
+    #bar{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--violet))}
+    video{width:100%;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:#000}
+  </style>
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <span class="badge">PWA-открытка • офлайн • для мамы</span>
+      <span class="pill">Каштан у ворот</span>
+      <span class="pill">Пуша — в сердце (2014)</span>
+    </div>
+    <h1>Мамин Маршрут</h1>
+    <p class="muted">Открытка + «карманный помощник»: читает стих, показывает наши кадры и офлайн-генерирует тёплые фразы. Можно установить как приложение.</p>
+
+    <div class="grid">
+      <section class="card">
+        <div class="controls">
+          <button id="playPoem">▶︎ Прочитать стих</button>
+          <button id="playSong" class="secondary">▶︎ Воспроизвести song.mp3</button>
+          <button id="confetti" class="secondary">♡ Спасибо за путь</button>
+          <button id="install" class="orange" title="Установить на главный экран">Установить</button>
+        </div>
+        <div id="load"><div id="bar"></div></div>
+        <div class="lyr" id="poem"></div>
+
+        <hr style="margin:18px 0;opacity:.15;border:none;border-top:1px solid rgba(255,255,255,.15)">
+        <h3 style="margin:0 0 8px">Карманный помощник (офлайн)</h3>
+        <p class="small" style="margin:0 0 8px">Три кнопки — короткие фразы «в твоём стиле». Можно озвучить/скопировать.</p>
+        <div class="controls" style="margin:10px 0 8px">
+          <button id="btnSupport">Поддержать</button>
+          <button id="btnFocus" class="secondary">Собраться</button>
+          <button id="btnGrat" class="secondary">Поблагодарить</button>
+          <button id="speak" class="secondary">Озвучить</button>
+          <button id="copy" class="secondary">Копировать</button>
+        </div>
+        <div class="card" style="background:rgba(255,255,255,.05);border-radius:14px;padding:12px" id="out"></div>
+
+        <div style="height:12px"></div>
+        <div class="controls">
+          <button id="playVideo" class="secondary">▶︎ Воспроизвести video.mp4</button>
+        </div>
+        <video id="video" controls preload="none" style="display:none"></video>
+      </section>
+
+      <aside class="card">
+        <h3 style="margin:6px 0 10px">Наши кадры</h3>
+        <div class="gallery" id="gallery"></div>
+        <div style="height:8px"></div>
+        <textarea class="note" id="note" placeholder="Мам, можно писать тёплые заметки — они сохранятся на устройстве"></textarea>
+        <div style="height:8px"></div>
+        <div class="controls">
+          <button id="saveNote" class="secondary">Сохранить заметку</button>
+          <button id="exportNote" class="secondary">Экспорт .json</button>
+        </div>
+        <p class="small">Подсказка: положи фото в <b>img/</b> (1.jpg…9.jpg). По желанию — <b>song.mp3</b> и <b>video.mp4</b> рядом с index.html</p>
+      </aside>
+    </div>
+
+    <p class="footer">Сделано с любовью Максимом и Софией — для мамы. ♡</p>
+  </div>
+</body>
+</html>

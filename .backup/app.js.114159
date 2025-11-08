@@ -1,0 +1,245 @@
+// app.js — MamaRoute (Qwen2.5-0.5B-Instruct, локально)
+
+// ========= 0) Стих (финальная версия) =========
+const POEM = `You woke before the sun would rise,
+With sleepy stars still in the skies.
+The clinking pots, the smell of bread —
+A song of care that softly spread.
+
+You fed the ducks, the hens, the cat,
+And laughed — I still remember that.
+You brushed my hair, you calmed my pain,
+And turned my storms to peace again.
+
+You walked for miles, through wind and dew,
+So I could learn, because of you.
+No crown, no fame, no loud acclaim —
+Yet all I am recalls your name.`;
+
+// ========= 1) Вставляем стих и кнопки =========
+const poemBox = document.getElementById('poem');
+if (poemBox) poemBox.textContent = POEM;
+
+document.getElementById('playPoem')?.addEventListener('click', () => {
+  const u = new SpeechSynthesisUtterance(POEM);
+  u.lang = 'en-US';
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
+});
+
+const audio = new Audio('./song.mp3');
+document.getElementById('playSong')?.addEventListener('click', () => {
+  audio.currentTime = 0; audio.play().catch(()=>{});
+});
+
+const video = document.getElementById('video');
+document.getElementById('playVideo')?.addEventListener('click', () => {
+  if (!video) return;
+  video.src = './video.mp4';
+  video.style.display = 'block';
+  video.play().catch(()=>{});
+});
+
+// маленький «конфетти»-пинг
+document.getElementById('confetti')?.addEventListener('click', () => {
+  const out = document.getElementById('out');
+  if (!out) return;
+  const old = out.textContent || '';
+  out.textContent = (old ? old + ' ' : '') + '♡';
+  setTimeout(()=>{ out.textContent = old; }, 900);
+});
+
+// ========= 2) Галерея 1.jpg…9.jpg =========
+const gal = document.getElementById('gallery');
+if (gal) {
+  [...Array(9)].forEach((_,i)=>{
+    const img = new Image();
+    img.src = `./img/${i+1}.jpg`;
+    img.loading = 'lazy';
+    img.onerror = () => img.remove();
+    img.onload = () => gal.appendChild(img);
+    img.alt = 'Наш кадр';
+  });
+}
+
+// ========= 3) Локальные заметки =========
+const note = document.getElementById('note');
+const KEY = 'mamaroute_note';
+if (note) note.value = localStorage.getItem(KEY) || '';
+document.getElementById('saveNote')?.addEventListener('click', () => {
+  localStorage.setItem(KEY, note.value);
+});
+document.getElementById('exportNote')?.addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ note: note.value, at: new Date().toISOString() }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mamaroute_note.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ========= 4) PWA установка + SW =========
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+document.getElementById('install')?.addEventListener('click', async () => {
+  if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; }
+});
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.warn);
+}
+
+// ========= 5) Генерация локально через transformers.js =========
+const outEl      = document.getElementById('out');
+const speakBtn   = document.getElementById('speak');
+const copyBtn    = document.getElementById('copy');
+const btnSupport = document.getElementById('btnSupport');
+const btnFocus   = document.getElementById('btnFocus');
+const btnGrat    = document.getElementById('btnGrat');
+
+const loadBar  = document.getElementById('bar');
+const loadWrap = document.getElementById('load');
+function barTo(p){ if(loadBar){ loadBar.style.width = `${p}%`; } }
+
+// ——— Персона/факты/режимы (русский, коротко, без моралей)
+const PERSONA = `Ты — маленький добрый офлайн-помощник для мамы.
+Пиши по-русски. Коротко (1–2 предложения), тепло, без назиданий и без вопросов.
+Без медицинских советов. Простыми словами.`;
+
+const FACTS = [
+  '4 км до школы и терпение на лестницах.',
+  'Дача: куры, утки, грядки, ранние подъёмы и гремящая посуда.',
+  'Хлеб, запеканки, яблоки с мёдом — вкус дома.',
+  'Шахматы и первые турниры.',
+  'Ночные дежурства у кровати — я помню.',
+  'Спасибо за путь и за английский — ты лучший учитель.'
+];
+
+const PROMPTS = {
+  support: `Режим: Поддержать. Мягко успокоить и приободрить. 1–2 предложения.`,
+  focus:   `Режим: Собраться. Одна маленькая задача на сейчас, без слова "надо".`,
+  thanks:  `Режим: Поблагодарить. Коротко и светло.`
+};
+
+// Фолбэк-реплики (офлайн-шаблон, если модель не подхватилась)
+const FALLBACK = {
+  support: [
+    'Давай поставим тишину вокруг и вдохнём медленно — ты рядом, и это уже хорошо.',
+    'Запах яблок с мёдом помнишь? Так же мягко — и с собой сейчас.',
+    'Мы брали лестницы вместе; и это возьмём. Шаг за шагом.'
+  ],
+  focus: [
+    'Один добрый шаг: тёплый чай, три медленных вдоха — и маленькое дело.',
+    'Запишем одну мысль в блокнот — остальное подождёт.',
+    'Откроем окно и выберем одну вещь сделать спокойно.'
+  ],
+  thanks: [
+    'Спасибо за хлеб дома и за дорогу в школу — это со мной всегда.',
+    'Спасибо за английский и тепло рук — ты в каждом моём шаге.',
+    'Спасибо за путь. Люблю и помню.'
+  ]
+};
+
+// ——— transformers.js: только локальные модели из ./models
+const { pipeline, env } = window.transformers || {};
+if (env) {
+  env.allowLocalModels = true;
+  env.allowRemoteModels = false;
+  env.localModelPath  = './models';
+  env.useBrowserCache = true;
+  // небольшая подстраховка для wasm, если WebGPU недоступен
+  env.backends = env.backends || {};
+  env.backends.onnx = env.backends.onnx || {};
+  env.backends.onnx.wasm = env.backends.onnx.wasm || {};
+  env.backends.onnx.wasm.numThreads = 2;     // можно 1–4; на Pixel 7 обычно 2–3 ок
+  env.backends.onnx.wasm.proxy = true;
+}
+
+let generatorPromise = (async () => {
+  if (!pipeline) return null;
+  try {
+    if (loadWrap) loadWrap.style.display = 'block';
+    let fake = 0; const tick = setInterval(()=>{ fake = Math.min(fake+6, 88); barTo(fake); }, 120);
+
+    // ВАЖНО: указываем папку модели целиком (transformers.js сам найдёт onnx/)
+    const gen = await pipeline('text-generation', './models/qwen25-0.5b-instruct');
+
+    clearInterval(tick); barTo(100);
+    setTimeout(()=>{ if(loadWrap) loadWrap.style.display='none'; }, 300);
+    console.log('✅ модель загружена: Qwen2.5-0.5B-Instruct (локально)');
+    return gen;
+  } catch (e) {
+    console.warn('Model fallback (шаблон):', e);
+    if (loadWrap) loadWrap.style.display='none';
+    return null;
+  }
+})();
+
+function pickOne(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function sanitize(s){ return s.replace(/<\|.*?\|>/g,'').replace(/\s+/g,' ').trim(); }
+function cropToTwoSentences(s){
+  const m = s.match(/[^.!?]+[.!?]/g);
+  if(!m) return s.slice(0,220).trim();
+  let out = (m[0]||'').trim();
+  if(m[1]) out += ' ' + m[1].trim();
+  if(out.length>220) out = out.slice(0,220).replace(/[,;:\-\s]+[^,.;:\-\s]*$/,'').trim() + '…';
+  return out;
+}
+
+async function generate(mode){
+  const gen = await generatorPromise;
+
+  const prompt = `${PERSONA}
+
+Факты: ${FACTS.join(' ')}
+
+${PROMPTS[mode]}
+Ответ 1–2 коротких предложения. Начни сразу с мысли, без обращений и вопросов.`;
+
+  // параметры генерации: мягкая вариативность, меньше болтовни
+  const GEN_OPTS = {
+    max_new_tokens: 48,
+    temperature: 0.7,
+    top_p: 0.9,
+    top_k: 50,
+    repetition_penalty: 1.2,
+    do_sample: true,
+    return_full_text: false,
+    seed: Date.now() % 1000000000
+  };
+
+  try{
+    if(!gen) throw new Error('no-model');
+    const out = await gen(prompt, GEN_OPTS);
+    let text = (out?.[0]?.generated_text || '').trim();
+    if(!text) throw new Error('empty');
+    text = sanitize(text);
+    if(!/[а-яА-Я]/.test(text)) return pickOne(FALLBACK[mode]); // если вдруг «убежало» в английский
+    return cropToTwoSentences(text);
+  }catch{
+    return pickOne(FALLBACK[mode]);
+  }
+}
+
+async function handle(mode){
+  if(outEl) outEl.textContent = '…';
+  const t0 = performance.now();
+  const text = await generate(mode);
+  const t1 = performance.now();
+  if(outEl) outEl.textContent = text + `  ${((t1-t0)/1000).toFixed(1)}s`;
+}
+btnSupport?.addEventListener('click', ()=>handle('support'));
+btnFocus  ?.addEventListener('click', ()=>handle('focus'));
+btnGrat   ?.addEventListener('click', ()=>handle('thanks'));
+
+// Озвучка/копирование результата
+speakBtn?.addEventListener('click', ()=>{
+  const t = outEl?.textContent?.replace(/\s+\d+\.\ds$/,'')?.trim(); if(!t) return;
+  const u = new SpeechSynthesisUtterance(t); u.lang='ru-RU';
+  window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
+});
+copyBtn?.addEventListener('click', async ()=>{
+  const t = outEl?.textContent?.replace(/\s+\d+\.\ds$/,'')?.trim(); if(!t) return;
+  try{ await navigator.clipboard.writeText(t);
+       outEl.textContent = t + '  (Скопировано)'; setTimeout(()=>{ outEl.textContent = t; }, 900);
+  }catch{}
+});

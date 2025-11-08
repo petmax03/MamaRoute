@@ -1,0 +1,18 @@
+# тяжёлое/локальное
+models/
+*.onnx
+*.safetensors
+*.bin
+*.tflite
+*.pt
+*.pth
+*.npz
+*.ckpt
+# большие медиа (оставь маленькие фото)
+video.mp4
+*.mp4
+*.mov
+song.mp3
+*.wav
+# сборочная шелуха
+.DS_Store
